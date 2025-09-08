@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
@@ -6,8 +6,8 @@ import { db } from '../firebase';
 interface Project {
   title: string;
   description?: string;
-  img?: string;          // keep old support
-  images?: string[];     // ✅ new array of images
+  img?: string;
+  images?: string[];
   link?: string;
 }
 
@@ -19,22 +19,39 @@ interface ProjectsData {
   darkBackgroundColor?: string;
   darkTextColor?: string;
   hoverTextColor?: string;
+  hoverColors?: string[];
 }
 
-// ✅ Local Image Slider Component
 const ImageSlider: React.FC<{ images: string[] }> = ({ images }) => {
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!images.length) return;
-    const interval = setInterval(() => {
-      setIndex((prev) => (prev + 1) % images.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [images]);
+
+    const startSlider = () => {
+      intervalRef.current = setInterval(
+        () => setIndex((prev) => (prev + 1) % images.length),
+        1500 // ⏳ 1.5 sec interval
+      );
+    };
+
+    if (!paused) startSlider();
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [images, paused]);
+
+  if (!images.length) return null;
 
   return (
-    <div className="w-full aspect-video relative rounded-lg overflow-hidden shadow-md min-h-[200px]">
+    <div
+      className="w-full aspect-video relative rounded-lg overflow-hidden shadow-md min-h-[200px]"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
       <AnimatePresence mode="wait">
         <motion.img
           key={index}
@@ -51,13 +68,30 @@ const ImageSlider: React.FC<{ images: string[] }> = ({ images }) => {
   );
 };
 
-
-
 export default function Projects() {
   const [data, setData] = useState<ProjectsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
+
+  const defaultHoverColors = ['#06b6d4', '#3b82f6', '#f43f5e', '#facc15'];
+  const randomColor = () => {
+    const colors = data?.hoverColors || defaultHoverColors;
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
+  const renderWordByWord = (text: string) =>
+    text.split(' ').map((word, idx) => (
+      <motion.span
+        key={idx}
+        className="inline-block mr-1 cursor-pointer"
+        style={{ color: isDark ? data?.darkTextColor || '#fff' : data?.textColor || '#000' }}
+        whileHover={{ color: randomColor(), scale: 1.1 }}
+        transition={{ duration: 0.2 }}
+      >
+        {word}
+      </motion.span>
+    ));
 
   useEffect(() => {
     const projectsRef = ref(db, 'projects');
@@ -77,62 +111,44 @@ export default function Projects() {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <section
-        id="projects"
-        className="section py-10"
-        style={{
-          backgroundColor: data
-            ? isDark
-              ? data.darkBackgroundColor
-              : data.backgroundColor
-            : undefined,
-          color: data
-            ? isDark
-              ? data.darkTextColor
-              : data.textColor
-            : undefined,
-        }}
-      >
-        <div className="mx-auto px-8 md:px-12 lg:px-16 max-w-8xl relative"></div>
-      </section>
-    );
-  }
+  if (loading) return <section id="projects" className="section py-16 md:py-20"></section>;
 
   return (
-    <section
+    <motion.section
       id="projects"
-      className="section py-10 transition-colors duration-300"
+      className="section py-16 md:py-20 transition-colors duration-300"
       style={{
         backgroundColor: isDark ? data?.darkBackgroundColor : data?.backgroundColor,
         color: isDark ? data?.darkTextColor : data?.textColor,
       }}
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.3 }}
+      transition={{ duration: 0.8 }}
     >
       <div className="mx-auto px-8 md:px-12 lg:px-16 max-w-8xl relative">
         <h2 className="text-3xl font-bold mb-10 text-center">{data?.title || 'Projects'}</h2>
 
-        <div className="flex flex-col gap-16 overflow-x-hidden no-scrollbar">
+        <div className="flex flex-col gap-16 overflow-visible no-scrollbar">
           {data?.items.map((p, i) => (
             <motion.div
               key={i}
-              className="relative flex flex-col md:flex-row items-center gap-6 perspective-1000 px-4 md:px-6"
+              className="relative flex flex-col md:flex-row items-center gap-6 px-4 md:px-6 overflow-visible"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-
-
-              {/* Image Card with Slider */}
+              {/* Image Card */}
               <motion.div
-                className="flex-1 relative cursor-pointer z-20 rounded-xl overflow-hidden"
+                className="flex-1 relative cursor-pointer z-20 rounded-xl overflow-visible max-w-full"
                 style={{ perspective: 1200 }}
                 whileHover={{
-                  rotateY: 12,           // stronger tilt
+                  rotateY: 12,
                   rotateX: 6,
-                  scale: 1.08,           // slightly bigger
-                  boxShadow: '0 0 25px rgba(0, 255, 255, 0.7), 0 25px 50px rgba(0,0,0,0.35)',
+                  scale: 1.08,
+                  boxShadow: '0 0 25px rgba(0, 123, 255, 0.7), 0 25px 50px rgba(0,0,0,0.35)',
                   transition: { duration: 0.4 },
+                  transformStyle: 'preserve-3d',
                 }}
                 onClick={() => setSelectedProject(p)}
               >
@@ -141,7 +157,7 @@ export default function Projects() {
 
               {/* Text Card */}
               <motion.div
-                className="-ml-0 md:-ml-16 flex-1 p-6 rounded-xl z-10 relative cursor-pointer transition-all duration-300"
+                className="-ml-0 md:-ml-16 flex-1 rounded-xl z-10 relative cursor-pointer transition-all duration-300 overflow-visible"
                 style={{
                   backgroundColor: isDark ? data?.darkBackgroundColor : data?.backgroundColor,
                   color: isDark ? data?.darkTextColor : data?.textColor,
@@ -151,15 +167,16 @@ export default function Projects() {
                   rotateY: -12,
                   rotateX: -6,
                   scale: 1.08,
-                  boxShadow: '0 0 25px rgba(0, 255, 255, 0.7), 0 25px 50px rgba(0,0,0,0.35)',
-                  color: isDark ? data?.hoverTextColor || '#00ffff' : data?.hoverTextColor || '#006064',
+                  boxShadow: '0 0 25px rgba(0, 123, 255, 0.7), 0 25px 50px rgba(0,0,0,0.35)',
                   transition: { duration: 0.4 },
+                  transformStyle: 'preserve-3d',
                 }}
                 onClick={() => setSelectedProject(p)}
               >
-                <div className="pl-4 md:pl-6 lg:pl-8">
-                  <h3 className="text-xl font-semibold">{p.title}</h3>
-                  {p.description && <p className="mt-2">{p.description}</p>}
+                {/* ✅ Shift only text content */}
+                <div className="pl-8 md:pl-12 lg:pl-16">
+                  <h3 className="text-xl font-semibold">{renderWordByWord(p.title)}</h3>
+                  {p.description && <p className="mt-2">{renderWordByWord(p.description)}</p>}
                   {p.link && (
                     <a
                       href={p.link}
@@ -173,12 +190,11 @@ export default function Projects() {
                 </div>
               </motion.div>
 
-
             </motion.div>
           ))}
         </div>
 
-        {/* Modal */}
+        {/* Modal with ImageSlider */}
         {selectedProject && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 p-4">
             <motion.div
@@ -198,22 +214,23 @@ export default function Projects() {
                 &times;
               </button>
 
-              {/* ✅ Modal shows full responsive image */}
-              <img
-                src={selectedProject.images ? selectedProject.images[0] : selectedProject.img}
-                alt={selectedProject.title}
-                className="w-full max-h-[70vh] object-contain rounded mb-4 cursor-pointer"
+              {/* 🔥 Use ImageSlider in modal */}
+              <div
+                className="mb-4 cursor-pointer"
                 onClick={() => {
                   if (selectedProject.link) window.open(selectedProject.link, '_blank');
                   setSelectedProject(null);
                 }}
-              />
-              <h3 className="text-xl font-bold mb-2">{selectedProject.title}</h3>
-              {selectedProject.description && <p className="mb-4">{selectedProject.description}</p>}
+              >
+                <ImageSlider images={selectedProject.images || (selectedProject.img ? [selectedProject.img] : [])} />
+              </div>
+
+              <h3 className="text-xl font-bold mb-2">{renderWordByWord(selectedProject.title)}</h3>
+              {selectedProject.description && <p className="mb-4">{renderWordByWord(selectedProject.description)}</p>}
             </motion.div>
           </div>
         )}
       </div>
-    </section>
+    </motion.section>
   );
 }

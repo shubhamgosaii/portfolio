@@ -16,16 +16,34 @@ interface CertificationsData {
   backgroundColor?: string;
   darkBackgroundColor?: string;
   darkTextColor?: string;
+  hoverColors?: string[];
   items: Certificate[];
 }
 
 export default function Certifications() {
   const [data, setData] = useState<CertificationsData | null>(null);
-  const [isDark, setIsDark] = useState(
-    document.documentElement.classList.contains('dark')
-  );
+  const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
   const [selected, setSelected] = useState<Certificate | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const defaultHoverColors = ['#06b6d4', '#3b82f6', '#f43f5e', '#facc15'];
+  const randomColor = () => {
+    const colors = data?.hoverColors || defaultHoverColors;
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
+  const renderWordByWord = (text: string) =>
+    text.split(' ').map((word, idx) => (
+      <motion.span
+        key={idx}
+        className="inline-block mr-1 cursor-pointer"
+        style={{ color: isDark ? data?.darkTextColor || '#fff' : data?.textColor || '#000' }}
+        whileHover={{ color: randomColor(), scale: 1.1 }}
+        transition={{ duration: 0.2 }}
+      >
+        {word}
+      </motion.span>
+    ));
 
   useEffect(() => {
     const certRef = ref(db, 'certifications');
@@ -37,10 +55,7 @@ export default function Certifications() {
     const observer = new MutationObserver(() => {
       setIsDark(document.documentElement.classList.contains('dark'));
     });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
     return () => {
       unsubscribe();
@@ -48,12 +63,22 @@ export default function Certifications() {
     };
   }, []);
 
+  // Scroll one certificate at a time
   const scroll = (direction: 'left' | 'right') => {
     if (!scrollRef.current) return;
-    const { scrollLeft, clientWidth } = scrollRef.current;
-    const scrollAmount =
-      direction === 'left' ? scrollLeft - clientWidth : scrollLeft + clientWidth;
-    scrollRef.current.scrollTo({ left: scrollAmount, behavior: 'smooth' });
+
+    const item = scrollRef.current.querySelector<HTMLElement>('.cert-item');
+    if (!item) return;
+
+    const gap = 24; // match your gap-6
+    const scrollAmount = item.offsetWidth + gap;
+
+    const newScrollLeft =
+      direction === 'left'
+        ? scrollRef.current.scrollLeft - scrollAmount
+        : scrollRef.current.scrollLeft + scrollAmount;
+
+    scrollRef.current.scrollTo({ left: newScrollLeft, behavior: 'smooth' });
   };
 
   if (!data) return null;
@@ -85,22 +110,20 @@ export default function Certifications() {
           <div
             ref={scrollRef}
             className="flex gap-6 overflow-x-auto scroll-smooth pb-4 no-scrollbar"
-            // Enable touch scrolling
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             {data.items.map((cert, i) => (
               <motion.div
                 key={i}
-                className="flex-shrink-0 w-64 sm:w-72 md:w-80 cursor-pointer rounded-xl shadow-md transition-transform duration-300"
+                className="cert-item flex-shrink-0 w-64 sm:w-72 md:w-80 cursor-pointer rounded-xl shadow-md transition-transform duration-300"
                 style={{ perspective: 1000 }}
                 whileHover={{
                   rotateY: 10,
                   rotateX: 5,
                   scale: 1.05,
-                  boxShadow:
-                    '0 0 20px rgba(0, 255, 255, 0.6), 0 20px 40px rgba(0,0,0,0.3)',
+                  boxShadow: '0 0 20px rgba(0, 123, 255, 0.7), 0 20px 40px rgba(0,0,0,0.35)',
                 }}
-                whileTap={{ scale: 0.98 }} // touch-friendly effect
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setSelected(cert)}
               >
                 <img
@@ -109,7 +132,7 @@ export default function Certifications() {
                   className="w-full h-48 sm:h-56 md:h-64 object-cover rounded-lg"
                 />
                 <h3 className="mt-2 text-center font-semibold text-sm sm:text-base md:text-lg">
-                  {cert.title}
+                  {renderWordByWord(cert.title)}
                 </h3>
               </motion.div>
             ))}
@@ -154,7 +177,9 @@ export default function Certifications() {
                   setSelected(null);
                 }}
               />
-              <h3 className="text-xl sm:text-2xl font-bold mb-2 text-center">{selected.title}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold mb-2 text-center">
+                {renderWordByWord(selected.title)}
+              </h3>
             </motion.div>
           </div>
         )}

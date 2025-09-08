@@ -42,7 +42,6 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [iconBottom, setIconBottom] = useState(24);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Firebase anonymous login
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) setUser(u);
@@ -51,7 +50,6 @@ export default function Contact({ dark }: { dark: boolean }) {
     return () => unsub();
   }, []);
 
-  // Load contact data
   useEffect(() => {
     const contactRef = ref(db, "contact");
     return onValue(contactRef, (snapshot) => {
@@ -59,7 +57,6 @@ export default function Contact({ dark }: { dark: boolean }) {
     });
   }, []);
 
-  // Load messages for this email-based userId
   useEffect(() => {
     if (!userId) return;
     const userMessagesRef = ref(db, `messages/${userId}`);
@@ -70,27 +67,21 @@ export default function Contact({ dark }: { dark: boolean }) {
           ...snapshot.val()[id],
         }));
         setMessages(msgs.sort((a, b) => a.createdAt - b.createdAt));
-      } else {
-        setMessages([]);
-      }
+      } else setMessages([]);
     });
   }, [userId]);
 
-  // Auto-scroll chat
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, inboxOpen]);
 
-  // Adjust floating icon above footer
   useEffect(() => {
     const handleScroll = () => {
       const footer = document.querySelector("#footer");
       if (!footer) return;
       const footerRect = footer.getBoundingClientRect();
       const windowHeight = window.innerHeight;
-      setIconBottom(
-        footerRect.top < windowHeight - 80 ? windowHeight - footerRect.top + 24 : 24
-      );
+      setIconBottom(footerRect.top < windowHeight - 80 ? windowHeight - footerRect.top + 24 : 24);
     };
     window.addEventListener("scroll", handleScroll);
     window.addEventListener("resize", handleScroll);
@@ -103,7 +94,6 @@ export default function Contact({ dark }: { dark: boolean }) {
 
   const isValidEmail = (mail: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
 
-  // 🚀 If user has localStorage email, auto-load chat (skip form)
   useEffect(() => {
     if (localStorage.getItem("chatEmail") && localStorage.getItem("chatUserId")) {
       setSubmitted(true);
@@ -112,39 +102,26 @@ export default function Contact({ dark }: { dark: boolean }) {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !formMessage) {
-      setStatus("Please fill all fields.");
-      return;
-    }
-    if (!isValidEmail(email)) {
-      setStatus("Please enter a valid email.");
-      return;
-    }
-    if (!user) {
-      setStatus("Initializing user... please wait a moment.");
-      return;
-    }
+    if (!name || !email || !formMessage) return setStatus("Please fill all fields.");
+    if (!isValidEmail(email)) return setStatus("Please enter a valid email.");
+    if (!user) return setStatus("Initializing user... please wait.");
 
     try {
-      // 🔎 1. Check if email already exists in database
       const allMessagesRef = ref(db, "messages");
       const snapshot = await get(allMessagesRef);
-
       let existingUserId: string | null = null;
+
       if (snapshot.exists()) {
         snapshot.forEach((child) => {
           const msgs = child.val();
           Object.values(msgs).forEach((msg: any) => {
-            if (msg.email === email) {
-              existingUserId = msg.userId;
-            }
+            if (msg.email === email) existingUserId = msg.userId;
           });
         });
       }
 
-      let finalUserId = existingUserId || user.uid;
+      const finalUserId = existingUserId || user.uid;
 
-      // If no existing chat, push first message
       if (!existingUserId) {
         await push(ref(db, `messages/${finalUserId}`), {
           userId: finalUserId,
@@ -156,7 +133,6 @@ export default function Contact({ dark }: { dark: boolean }) {
         });
       }
 
-      // ✅ Save to localStorage
       localStorage.setItem("contactSubmitted", "true");
       localStorage.setItem("chatName", name);
       localStorage.setItem("chatEmail", email);
@@ -191,22 +167,23 @@ export default function Contact({ dark }: { dark: boolean }) {
     }
   };
 
+  const textColor = dark ? "#fff" : "#000"; // ✅ Dynamic text color
+
   return (
     <>
-      {/* Contact Section */}
       <section
         id="contact"
         className="section transition-colors duration-300 py-16"
         style={{
           fontFamily: data?.font || "inherit",
-          color: dark ? data?.darkTextColor || "#fff" : data?.textColor || "#000",
+          color: textColor,
           backgroundColor: dark ? data?.darkBackgroundColor || "#111" : data?.backgroundColor || "#fff",
         }}
       >
         <div className="container mx-auto px-4 sm:px-6 md:px-8 max-w-xl">
           {data && (
             <>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-8 text-center">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-8 text-center" style={{ color: textColor }}>
                 {data.heading}
               </h2>
               {!submitted ? (
@@ -216,33 +193,36 @@ export default function Contact({ dark }: { dark: boolean }) {
                     onChange={(e) => setName(e.target.value)}
                     placeholder={data.placeholders.name}
                     className="p-3 rounded focus:ring-2 outline-none transition w-full"
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={data.placeholders.email}
                     className="p-3 rounded focus:ring-2 outline-none transition w-full"
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <textarea
                     value={formMessage}
                     onChange={(e) => setFormMessage(e.target.value)}
                     placeholder={data.placeholders.message}
                     className="p-3 rounded h-32 sm:h-40 focus:ring-2 outline-none transition w-full resize-none"
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <button
                     type="submit"
                     className="btn w-full sm:w-auto px-4 py-2 rounded transition-transform hover:scale-105 active:scale-95 mx-auto touch-manipulation"
                     style={{
                       backgroundColor: data.buttonBgColor || "#14b8a6",
-                      color: data.buttonTextColor || "#000",
+                      color: data.buttonTextColor || "#fff",
                     }}
                   >
                     {data.buttonText}
                   </button>
-                  {status && <p className="text-center text-slate-400 mt-2">{status}</p>}
+                  {status && <p className="text-center mt-2" style={{ color: textColor }}>{status}</p>}
                 </form>
               ) : (
-                <p className="text-center text-xl sm:text-2xl text-teal-500 mt-4">
+                <p className="text-center text-xl sm:text-2xl mt-4" style={{ color: textColor }}>
                   Thank you for your message! 😊
                 </p>
               )}
@@ -255,7 +235,7 @@ export default function Contact({ dark }: { dark: boolean }) {
       {submitted && (
         <button
           onClick={() => setInboxOpen(!inboxOpen)}
-          className="fixed right-3 sm:right-4 p-4 rounded-full shadow-lg"
+          className="fixed right-4 p-4 rounded-full shadow-lg"
           style={{
             bottom: `${iconBottom + 100}px`,
             zIndex: 50,
@@ -273,7 +253,7 @@ export default function Contact({ dark }: { dark: boolean }) {
           className="fixed bottom-20 right-4 sm:right-6 w-[90vw] sm:w-[320px] max-h-[70vh] shadow-2xl rounded-2xl overflow-hidden flex flex-col z-50"
           style={{
             backgroundColor: dark ? "#111" : "#fff",
-            color: dark ? "#fff" : "#000",
+            color: textColor,
           }}
         >
           <div
@@ -293,7 +273,7 @@ export default function Contact({ dark }: { dark: boolean }) {
                     className="p-2 rounded-lg max-w-[70%] text-sm sm:text-base"
                     style={{
                       backgroundColor: m.sender === "admin" ? "#14b8a6" : dark ? "#333" : "#e5e7eb",
-                      color: m.sender === "admin" ? "#fff" : dark ? "#fff" : "#000",
+                      color: m.sender === "admin" ? "#fff" : textColor,
                     }}
                   >
                     <strong>{m.name}</strong>
@@ -316,6 +296,7 @@ export default function Contact({ dark }: { dark: boolean }) {
               onChange={(e) => setChatMessage(e.target.value)}
               placeholder="Type a message..."
               className="flex-1 border p-2 rounded"
+              style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
             />
             <button type="submit" className="px-4 py-2 rounded bg-teal-600 text-white">
               Send

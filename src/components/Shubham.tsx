@@ -16,7 +16,6 @@ interface ShubhamData {
 
 export default function Shubham({ dark }: { dark: boolean }) {
   const [shubham, setShubham] = useState<ShubhamData | null>(null);
-  const [loading, setLoading] = useState(true);
 
   // 3D rotation for content
   const rotateX = useMotionValue(0);
@@ -53,21 +52,9 @@ export default function Shubham({ dark }: { dark: boolean }) {
     const shubhamRef = ref(db, "shubham");
     const unsubscribe = onValue(shubhamRef, (snapshot) => {
       if (snapshot.exists()) setShubham(snapshot.val());
-      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
-
-  if (loading)
-    return (
-      <section className="section min-h-screen flex items-center justify-center">
-        <img
-          src="https://i.gifer.com/ZZ5H.gif"
-          alt="loading"
-          className="w-16 h-16 sm:w-12 sm:h-12"
-        />
-      </section>
-    );
 
   const colors = shubham?.hoverColors || (dark ? ["#fff"] : ["#111"]);
   const randomColor = () => colors[Math.floor(Math.random() * colors.length)];
@@ -94,6 +81,8 @@ export default function Shubham({ dark }: { dark: boolean }) {
       </motion.span>
     ));
 
+  if (!shubham) return null; // ✅ Show nothing while loading
+
   return (
     <motion.section
       id="home"
@@ -101,12 +90,12 @@ export default function Shubham({ dark }: { dark: boolean }) {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       style={{
-        backgroundImage: shubham?.backgroundImage
+        backgroundImage: shubham.backgroundImage
           ? `url(${shubham.backgroundImage})`
           : undefined,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        fontFamily: shubham?.font || "inherit",
+        fontFamily: shubham.font || "inherit",
       }}
       animate={{
         scale: [1, 1.03, 1],
@@ -118,17 +107,15 @@ export default function Shubham({ dark }: { dark: boolean }) {
       }}
       transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
     >
-      {/* Overlay */}
       <div
         className="absolute inset-0"
         style={{
           backgroundColor:
-            shubham?.overlayColor || (dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)"),
+            shubham.overlayColor || (dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)"),
         }}
       ></div>
 
       <div className="container grid md:grid-cols-2 gap-8 lg:gap-12 items-center relative z-10">
-        {/* Image */}
         <motion.div
           className="flex justify-center md:justify-start"
           style={{
@@ -137,7 +124,7 @@ export default function Shubham({ dark }: { dark: boolean }) {
             transformStyle: "preserve-3d",
           }}
         >
-          {shubham?.image ? (
+          {shubham.image ? (
             <div className="relative w-36 h-48 sm:w-44 sm:h-56 md:w-64 md:h-80 lg:w-72 lg:h-96 bg-white rounded-lg shadow-2xl flex items-center justify-center">
               <motion.img
                 src={shubham.image}
@@ -156,9 +143,8 @@ export default function Shubham({ dark }: { dark: boolean }) {
           )}
         </motion.div>
 
-        {/* Text */}
         <div className="flex flex-col gap-4 sm:gap-6 text-center md:text-left">
-          {shubham?.name && (
+          {shubham.name && (
             <motion.h1
               className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold"
               style={{
@@ -170,7 +156,7 @@ export default function Shubham({ dark }: { dark: boolean }) {
               {renderHoverWords(shubham.name)}
             </motion.h1>
           )}
-          {shubham?.subtitle && (
+          {shubham.subtitle && (
             <motion.p
               className="text-lg sm:text-xl md:text-2xl font-medium max-w-xl mx-auto md:mx-0"
               style={{

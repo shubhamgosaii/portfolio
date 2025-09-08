@@ -43,14 +43,27 @@ export default function Education() {
 
   if (!data) return <section className="py-10"></section>;
 
+  const baseTextColor = isDark ? data.darkTextColor || '#ffffff' : data.textColor || '#000000';
+  const baseBgColor = isDark ? data.darkBackgroundColor || '#0b1220' : data.backgroundColor || '#ffffff';
+
+  const renderWordByWord = (text: string) =>
+    text.split(' ').map((word, idx) => (
+      <motion.span
+        key={idx}
+        className="inline-block mr-1 cursor-pointer"
+        style={{ color: baseTextColor }}
+        whileHover={{ color: randomColor(), scale: 1.1 }}
+        transition={{ duration: 0.2 }}
+      >
+        {word}
+      </motion.span>
+    ));
+
   return (
     <section
       id="education"
       className="section py-10 transition-colors duration-300"
-      style={{
-        backgroundColor: isDark ? data.darkBackgroundColor : data.backgroundColor,
-        color: isDark ? data.darkTextColor : data.textColor,
-      }}
+      style={{ backgroundColor: baseBgColor, color: baseTextColor }}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-10 text-center">
@@ -61,25 +74,29 @@ export default function Education() {
             <motion.div
               key={i}
               className="p-6 rounded-xl shadow-lg cursor-pointer transition-all duration-300 touch-manipulation"
-              style={{
-                backgroundColor: isDark ? data.darkBackgroundColor : data.backgroundColor,
-                color: isDark ? data.darkTextColor : data.textColor,
-                perspective: 1000,
+              style={{ backgroundColor: baseBgColor, perspective: 1000 }}
+              whileHover={{
+                rotateY: 10,
+                rotateX: 5,
+                scale: 1.05,
+                boxShadow: '0 20px 40px rgba(59, 130, 246, 0.5), 0 0 15px rgba(14, 165, 233, 0.3)',
               }}
-              whileHover={{ rotateY: 10, rotateX: 5, scale: 1.05 }}
               whileTap={{ scale: 0.98 }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.color = randomColor())
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.color = isDark
-                  ? data.darkTextColor || ''
-                  : data.textColor || '')
-              }
             >
-              <h3 className="font-semibold text-lg sm:text-xl md:text-xl">{edu.degree}</h3>
-              <p className="mt-1 text-sm sm:text-base">{edu.institution}</p>
-              <p className="mt-1 text-xs sm:text-sm opacity-70">{edu.year}</p>
+              {/* Degree */}
+              <h3 className="font-semibold text-lg sm:text-xl md:text-xl">
+                {renderWordByWord(edu.degree)}
+              </h3>
+
+              {/* Institution */}
+              <p className="mt-1 text-sm sm:text-base">
+                {renderWordByWord(edu.institution)}
+              </p>
+
+              {/* Year */}
+              <p className="mt-1 text-xs sm:text-sm opacity-70">
+                {renderWordByWord(edu.year)}
+              </p>
             </motion.div>
           ))}
         </div>

@@ -23,28 +23,24 @@ import { ADMIN_EMAIL } from "./config";
 
 function App() {
   const [dark, setDark] = useState(false);
-  const { user, loading } = useAuth(); // ✅ use global auth state
+  const { user, loading } = useAuth();
 
-  // Sync dark mode with <html> and local storage
   useEffect(() => {
     if (dark) document.documentElement.classList.add("dark");
     else document.documentElement.classList.remove("dark");
     localStorage.setItem("dark-mode", JSON.stringify(dark));
   }, [dark]);
 
-  // Load dark mode preference from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("dark-mode");
     if (saved) setDark(JSON.parse(saved));
   }, []);
 
-  // Scroll to top / home on first load
   useEffect(() => {
     const homeSection = document.getElementById("home");
     if (homeSection) homeSection.scrollIntoView({ behavior: "auto" });
   }, []);
 
-  // Smooth scroll for anchor links
   useEffect(() => {
     const handleAnchorClick = (e: Event) => {
       const target = e.target as HTMLAnchorElement;
@@ -59,11 +55,15 @@ function App() {
     return () => document.removeEventListener("click", handleAnchorClick);
   }, []);
 
-  // ✅ Prevent flash while Firebase restores session
+  // Loading GIF while Firebase restores session
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p>Loading...</p>
+        <img
+          src="https://i.gifer.com/ZZ5H.gif" // small loading GIF
+          alt="Loading..."
+          className="w-16 h-16"
+        />
       </div>
     );
   }
