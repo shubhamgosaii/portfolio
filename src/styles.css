@@ -1,0 +1,104 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset & basic global styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100%;
+  font-family: 'Inter', sans-serif;
+  scroll-behavior: smooth;
+  background-color: #fff;
+  color: #111827;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dark mode styles */
+.dark {
+  background-color: #0b1220;
+  color: #ffffff;
+}
+
+/* Section container utility */
+.section {
+  width: 100%;
+  padding: 4rem 1rem;
+}
+
+/* Hide scrollbars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Responsive images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Smooth hover & transition utilities */
+.transition-all {
+  transition: all 0.3s ease;
+}
+.transition-colors {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+.transition-transform {
+  transition: transform 0.3s ease;
+}
+
+/* Mobile-first responsive typography */
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.2;
+}
+
+/* Buttons & links hover effects */
+a, button {
+  cursor: pointer;
+  outline: none;
+}
+a:hover, button:hover {
+  opacity: 0.85;
+}
+
+/* Utility for flex centering */
+.flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Overlay utility */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Smooth scaling & shadow on hover */
+.hover-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Responsive padding helpers */
+.px-responsive {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
