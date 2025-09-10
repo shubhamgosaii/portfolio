@@ -8,7 +8,8 @@ import Shubham from "./components/Shubham";
 import Education from "./components/Education";
 import Experience from "./components/Experience";
 import Skills from "./components/Skills";
-import Projects from "./components/Projects";
+import Appproj from "./components/Appproj";
+import Webproj from "./components/Webproj";
 import Certifications from "./components/Certifications";
 import Contact from "./components/Contact";
 import Footer from "./components/Footer";
@@ -20,6 +21,8 @@ import AdminInbox from "./components/AdminInbox";
 // Auth Context
 import { useAuth } from "./context/AuthContext";
 import { ADMIN_EMAIL } from "./config";
+
+
 
 function App() {
   const [dark, setDark] = useState(false);
@@ -81,7 +84,8 @@ function App() {
               <Education dark={dark} />
               <Experience dark={dark} />
               <Skills dark={dark} />
-              <Projects dark={dark} />
+              <Webproj dark={dark} />
+              <Appproj dark={dark} />
               <Certifications dark={dark} />
               <Contact dark={dark} />
               <Footer dark={dark} />
