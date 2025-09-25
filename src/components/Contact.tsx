@@ -47,6 +47,10 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [adminTyping, setAdminTyping] = useState(false);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [lastMessageId, setLastMessageId] = useState<string | null>(null);
+  const [iconShake, setIconShake] = useState(false);
+
   // Initialize anonymous user
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -74,25 +78,46 @@ export default function Contact({ dark }: { dark: boolean }) {
           id,
           ...snapshot.val()[id],
         }));
-        setMessages(msgs.sort((a, b) => a.createdAt - b.createdAt));
+        const sorted = msgs.sort((a, b) => a.createdAt - b.createdAt);
+        setMessages(sorted);
+
+        if (sorted.length > 0) {
+          const latest = sorted[sorted.length - 1];
+          // New admin message check
+          if (latest.sender === "admin" && latest.id !== lastMessageId) {
+            if (!inboxOpen) {
+              setUnreadCount((c) => c + 1);
+
+              // Vibrate
+              if (navigator.vibrate) navigator.vibrate(200);
+
+              // Shake icon
+              setIconShake(true);
+              setTimeout(() => setIconShake(false), 600);
+            }
+            setLastMessageId(latest.id);
+          }
+        }
       } else setMessages([]);
     });
-  }, [userId]);
+  }, [userId, inboxOpen, lastMessageId]);
 
   // Listen for admin typing
   useEffect(() => {
     if (!userId) return;
     const typingRef = ref(db, `typing/${userId}/admin`);
-    return onValue(typingRef, snapshot => setAdminTyping(snapshot.val() || false));
+    return onValue(typingRef, (snapshot) => setAdminTyping(snapshot.val() || false));
   }, [userId]);
 
-  // Auto-scroll if near bottom
+  // Auto-scroll always to bottom
   useEffect(() => {
-    const container = scrollRef.current?.parentElement;
-    if (!container) return;
-    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-    if (nearBottom) scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, inboxOpen]);
+
+  // Reset unread count when chat opened
+  useEffect(() => {
+    if (inboxOpen) setUnreadCount(0);
+  }, [inboxOpen]);
 
   // Floating chat icon position
   useEffect(() => {
@@ -205,14 +230,32 @@ export default function Contact({ dark }: { dark: boolean }) {
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-8 text-center">{data.heading}</h2>
               {!submitted ? (
                 <form onSubmit={handleFormSubmit} className="grid gap-4">
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder={data.placeholders.name}
-                    className="p-3 rounded focus:ring-2 outline-none transition w-full" style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }} />
-                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder={data.placeholders.email}
-                    className="p-3 rounded focus:ring-2 outline-none transition w-full" style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }} />
-                  <textarea value={formMessage} onChange={(e) => setFormMessage(e.target.value)} placeholder={data.placeholders.message}
-                    className="p-3 rounded h-32 sm:h-40 focus:ring-2 outline-none transition w-full resize-none" style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }} />
-                  <button type="submit" className="btn w-full sm:w-auto px-4 py-2 rounded transition-transform hover:scale-105 active:scale-95 mx-auto touch-manipulation"
-                    style={{ backgroundColor: data.buttonBgColor || "#14b8a6", color: data.buttonTextColor || "#fff" }}>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={data.placeholders.name}
+                    className="p-3 rounded focus:ring-2 outline-none transition w-full"
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
+                  />
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={data.placeholders.email}
+                    className="p-3 rounded focus:ring-2 outline-none transition w-full"
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
+                  />
+                  <textarea
+                    value={formMessage}
+                    onChange={(e) => setFormMessage(e.target.value)}
+                    placeholder={data.placeholders.message}
+                    className="p-3 rounded h-32 sm:h-40 focus:ring-2 outline-none transition w-full resize-none"
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn w-full sm:w-auto px-4 py-2 rounded transition-transform hover:scale-105 active:scale-95 mx-auto touch-manipulation"
+                    style={{ backgroundColor: data.buttonBgColor || "#14b8a6", color: data.buttonTextColor || "#fff" }}
+                  >
                     {data.buttonText}
                   </button>
                   {formStatus && <p className="text-center mt-2">{formStatus}</p>}
@@ -227,11 +270,25 @@ export default function Contact({ dark }: { dark: boolean }) {
 
       {/* Floating Chat Icon */}
       {submitted && (
-        <button onClick={() => setInboxOpen(!inboxOpen)}
-          className="fixed right-4 p-4 rounded-full shadow-lg"
-          style={{ bottom: `${iconBottom + 100}px`, zIndex: 50, backgroundColor: dark ? "#0f766e" : "#14b8a6", color: "#fff" }}>
+        <motion.button
+          onClick={() => setInboxOpen(!inboxOpen)}
+          animate={iconShake ? { x: [0, -6, 6, -4, 4, 0] } : {}}
+          transition={{ duration: 0.6 }}
+          className="fixed right-4 p-4 rounded-full shadow-lg relative"
+          style={{
+            bottom: `${iconBottom + 100}px`,
+            zIndex: 50,
+            backgroundColor: dark ? "#0f766e" : "#14b8a6",
+            color: "#fff",
+          }}
+        >
           <MessageCircle size={28} />
-        </button>
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
+              {unreadCount}
+            </span>
+          )}
+        </motion.button>
       )}
 
       {/* Chat Inbox with Animation */}
@@ -247,30 +304,49 @@ export default function Contact({ dark }: { dark: boolean }) {
           >
             <div className="flex justify-between items-center p-3" style={{ backgroundColor: "#14b8a6", color: "#fff" }}>
               <h3 className="font-semibold">Chat {adminTyping && " (Admin is typing...)"}</h3>
-              <button onClick={() => setInboxOpen(false)}><X size={20} /></button>
+              <button onClick={() => setInboxOpen(false)}>
+                <X size={20} />
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              {messages.length > 0 ? messages.map((m) => (
-                <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
-                  <div className="p-2 rounded-lg max-w-[70%] text-sm sm:text-base" style={{
-                    backgroundColor: m.sender === "admin" ? "#14b8a6" : dark ? "#333" : "#e5e7eb",
-                    color: m.sender === "admin" ? "#fff" : textColor
-                  }}>
-                    <strong>{m.name}</strong>
-                    <p>{m.message}</p>
-                    <span className="text-[10px] block mt-1 opacity-70">{new Date(m.createdAt).toLocaleString()}</span>
+              {messages.length > 0 ? (
+                messages.map((m) => (
+                  <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className="p-2 rounded-lg max-w-[70%] text-sm sm:text-base"
+                      style={{
+                        backgroundColor: m.sender === "admin" ? "#14b8a6" : dark ? "#333" : "#e5e7eb",
+                        color: m.sender === "admin" ? "#fff" : textColor,
+                      }}
+                    >
+                      <strong>{m.name}</strong>
+                      <p>{m.message}</p>
+                      <span className="text-[10px] block mt-1 opacity-70">
+                        {new Date(m.createdAt).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )) : <p className="text-center">No messages yet.</p>}
+                ))
+              ) : (
+                <p className="text-center">No messages yet.</p>
+              )}
               <div ref={scrollRef} />
             </div>
             <form onSubmit={handleChatSubmit} className="p-3 border-t flex gap-2">
-              <input type="text" value={chatMessage}
-                onChange={(e) => { setChatMessage(e.target.value); setTypingStatus(e.target.value.trim().length > 0); }}
+              <input
+                type="text"
+                value={chatMessage}
+                onChange={(e) => {
+                  setChatMessage(e.target.value);
+                  setTypingStatus(e.target.value.trim().length > 0);
+                }}
                 placeholder="Type a message..."
                 className="flex-1 border p-2 rounded"
-                style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }} />
-              <button type="submit" className="px-4 py-2 rounded bg-teal-600 text-white">Send</button>
+                style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
+              />
+              <button type="submit" className="px-4 py-2 rounded bg-teal-600 text-white">
+                Send
+              </button>
             </form>
             {chatStatus && <p className="text-center text-sm text-red-500 mt-1">{chatStatus}</p>}
           </motion.div>
