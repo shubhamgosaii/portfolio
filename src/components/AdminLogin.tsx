@@ -1,6 +1,7 @@
 // src/components/AdminLogin.tsx
 import React, { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { FirebaseError } from "firebase/app";
 import { auth } from "../firebase";
 
 export default function AdminLogin() {
@@ -14,11 +15,32 @@ export default function AdminLogin() {
     setLoading(true);
     setError("");
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
       // ✅ No need for onLogin — AuthContext + Router will handle redirect
-    } catch (err: any) {
-      console.error(err);
-      setError("Invalid credentials");
+    } catch (err) {
+      if (err instanceof FirebaseError) {
+        console.error(err.code, err.message);
+
+        switch (err.code) {
+          case "auth/invalid-email":
+            setError("Invalid email address");
+            break;
+          case "auth/user-not-found":
+            setError("No account found with this email");
+            break;
+          case "auth/wrong-password":
+            setError("Incorrect password");
+            break;
+          case "auth/too-many-requests":
+            setError("Too many attempts. Please try again later.");
+            break;
+          default:
+            setError("Login failed. Please try again.");
+        }
+      } else {
+        console.error(err);
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -40,6 +62,7 @@ export default function AdminLogin() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
+            autoComplete="email"
             className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400 dark:bg-gray-700 dark:text-white dark:border-gray-600"
             required
           />
@@ -48,6 +71,7 @@ export default function AdminLogin() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
+            autoComplete="current-password"
             className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400 dark:bg-gray-700 dark:text-white dark:border-gray-600"
             required
           />

@@ -1,8 +1,10 @@
+// src/components/Contact.tsx
 import React, { useEffect, useState, useRef } from "react";
-import { ref, onValue, push, get } from "firebase/database";
+import { ref, onValue, push, onDisconnect, set } from "firebase/database";
 import { db, auth } from "../firebase";
 import { MessageCircle, X } from "lucide-react";
 import { onAuthStateChanged, signInAnonymously, User } from "firebase/auth";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ContactData {
   heading: string;
@@ -33,7 +35,8 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [email, setEmail] = useState(localStorage.getItem("chatEmail") || "");
   const [formMessage, setFormMessage] = useState("");
   const [chatMessage, setChatMessage] = useState("");
-  const [status, setStatus] = useState("");
+  const [formStatus, setFormStatus] = useState("");
+  const [chatStatus, setChatStatus] = useState("");
   const [submitted, setSubmitted] = useState(localStorage.getItem("contactSubmitted") === "true");
   const [inboxOpen, setInboxOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -41,7 +44,10 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [user, setUser] = useState<User | null>(null);
   const [iconBottom, setIconBottom] = useState(24);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [adminTyping, setAdminTyping] = useState(false);
+  const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize anonymous user
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) setUser(u);
@@ -50,6 +56,7 @@ export default function Contact({ dark }: { dark: boolean }) {
     return () => unsub();
   }, []);
 
+  // Fetch contact section data
   useEffect(() => {
     const contactRef = ref(db, "contact");
     return onValue(contactRef, (snapshot) => {
@@ -57,10 +64,11 @@ export default function Contact({ dark }: { dark: boolean }) {
     });
   }, []);
 
+  // Fetch messages for user
   useEffect(() => {
     if (!userId) return;
-    const userMessagesRef = ref(db, `messages/${userId}`);
-    return onValue(userMessagesRef, (snapshot) => {
+    const messagesRef = ref(db, `messages/${userId}`);
+    return onValue(messagesRef, (snapshot) => {
       if (snapshot.exists()) {
         const msgs: Message[] = Object.keys(snapshot.val()).map((id) => ({
           id,
@@ -71,10 +79,22 @@ export default function Contact({ dark }: { dark: boolean }) {
     });
   }, [userId]);
 
+  // Listen for admin typing
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!userId) return;
+    const typingRef = ref(db, `typing/${userId}/admin`);
+    return onValue(typingRef, snapshot => setAdminTyping(snapshot.val() || false));
+  }, [userId]);
+
+  // Auto-scroll if near bottom
+  useEffect(() => {
+    const container = scrollRef.current?.parentElement;
+    if (!container) return;
+    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    if (nearBottom) scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, inboxOpen]);
 
+  // Floating chat icon position
   useEffect(() => {
     const handleScroll = () => {
       const footer = document.querySelector("#footer");
@@ -94,60 +114,44 @@ export default function Contact({ dark }: { dark: boolean }) {
 
   const isValidEmail = (mail: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
 
+  // Persist submission state
   useEffect(() => {
-    if (localStorage.getItem("chatEmail") && localStorage.getItem("chatUserId")) {
-      setSubmitted(true);
-    }
+    if (localStorage.getItem("chatEmail") && localStorage.getItem("chatUserId")) setSubmitted(true);
   }, []);
 
+  // Form submit
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !formMessage) return setStatus("Please fill all fields.");
-    if (!isValidEmail(email)) return setStatus("Please enter a valid email.");
-    if (!user) return setStatus("Initializing user... please wait.");
+    if (!name || !email || !formMessage) return setFormStatus("Please fill all fields.");
+    if (!isValidEmail(email)) return setFormStatus("Please enter a valid email.");
+    if (!user) return setFormStatus("Initializing user... please wait.");
 
     try {
-      const allMessagesRef = ref(db, "messages");
-      const snapshot = await get(allMessagesRef);
-      let existingUserId: string | null = null;
-
-      if (snapshot.exists()) {
-        snapshot.forEach((child) => {
-          const msgs = child.val();
-          Object.values(msgs).forEach((msg: any) => {
-            if (msg.email === email) existingUserId = msg.userId;
-          });
-        });
-      }
-
-      const finalUserId = existingUserId || user.uid;
-
-      if (!existingUserId) {
-        await push(ref(db, `messages/${finalUserId}`), {
-          userId: finalUserId,
-          name,
-          email,
-          message: formMessage,
-          createdAt: Date.now(),
-          sender: "user",
-        });
-      }
+      const finalUserId = user.uid;
+      await push(ref(db, `messages/${finalUserId}`), {
+        userId: finalUserId,
+        name,
+        email,
+        message: formMessage,
+        createdAt: Date.now(),
+        sender: "user",
+      });
 
       localStorage.setItem("contactSubmitted", "true");
       localStorage.setItem("chatName", name);
       localStorage.setItem("chatEmail", email);
       localStorage.setItem("chatUserId", finalUserId);
-
       setUserId(finalUserId);
       setSubmitted(true);
       setFormMessage("");
-      setStatus("");
+      setFormStatus("");
     } catch (err) {
       console.error(err);
-      setStatus("Failed to send message.");
+      setFormStatus("Failed to send message.");
     }
   };
 
+  // Chat submit
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatMessage.trim() || !userId) return;
@@ -161,13 +165,28 @@ export default function Contact({ dark }: { dark: boolean }) {
         sender: "user",
       });
       setChatMessage("");
+      setTypingStatus(false);
+      setChatStatus("");
     } catch (err) {
       console.error(err);
-      setStatus("Failed to send message.");
+      setChatStatus("Failed to send message.");
     }
   };
 
-  const textColor = dark ? "#fff" : "#000"; // ✅ Dynamic text color
+  // Debounced typing status
+  const setTypingStatus = (isTyping: boolean) => {
+    if (!userId) return;
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
+
+    set(ref(db, `typing/${userId}/user`), isTyping);
+    onDisconnect(ref(db, `typing/${userId}/user`)).set(false);
+
+    typingTimeout.current = setTimeout(() => {
+      set(ref(db, `typing/${userId}/user`), false);
+    }, 2000);
+  };
+
+  const textColor = dark ? "#fff" : "#000";
 
   return (
     <>
@@ -183,48 +202,23 @@ export default function Contact({ dark }: { dark: boolean }) {
         <div className="container mx-auto px-4 sm:px-6 md:px-8 max-w-xl">
           {data && (
             <>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-8 text-center" style={{ color: textColor }}>
-                {data.heading}
-              </h2>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-8 text-center">{data.heading}</h2>
               {!submitted ? (
                 <form onSubmit={handleFormSubmit} className="grid gap-4">
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={data.placeholders.name}
-                    className="p-3 rounded focus:ring-2 outline-none transition w-full"
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
-                  />
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={data.placeholders.email}
-                    className="p-3 rounded focus:ring-2 outline-none transition w-full"
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
-                  />
-                  <textarea
-                    value={formMessage}
-                    onChange={(e) => setFormMessage(e.target.value)}
-                    placeholder={data.placeholders.message}
-                    className="p-3 rounded h-32 sm:h-40 focus:ring-2 outline-none transition w-full resize-none"
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
-                  />
-                  <button
-                    type="submit"
-                    className="btn w-full sm:w-auto px-4 py-2 rounded transition-transform hover:scale-105 active:scale-95 mx-auto touch-manipulation"
-                    style={{
-                      backgroundColor: data.buttonBgColor || "#14b8a6",
-                      color: data.buttonTextColor || "#fff",
-                    }}
-                  >
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder={data.placeholders.name}
+                    className="p-3 rounded focus:ring-2 outline-none transition w-full" style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }} />
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder={data.placeholders.email}
+                    className="p-3 rounded focus:ring-2 outline-none transition w-full" style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }} />
+                  <textarea value={formMessage} onChange={(e) => setFormMessage(e.target.value)} placeholder={data.placeholders.message}
+                    className="p-3 rounded h-32 sm:h-40 focus:ring-2 outline-none transition w-full resize-none" style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }} />
+                  <button type="submit" className="btn w-full sm:w-auto px-4 py-2 rounded transition-transform hover:scale-105 active:scale-95 mx-auto touch-manipulation"
+                    style={{ backgroundColor: data.buttonBgColor || "#14b8a6", color: data.buttonTextColor || "#fff" }}>
                     {data.buttonText}
                   </button>
-                  {status && <p className="text-center mt-2" style={{ color: textColor }}>{status}</p>}
+                  {formStatus && <p className="text-center mt-2">{formStatus}</p>}
                 </form>
               ) : (
-                <p className="text-center text-xl sm:text-2xl mt-4" style={{ color: textColor }}>
-                  Thank you for your message! 😊
-                </p>
+                <p className="text-center text-xl sm:text-2xl mt-4">Thank you for your message! 😊</p>
               )}
             </>
           )}
@@ -233,77 +227,55 @@ export default function Contact({ dark }: { dark: boolean }) {
 
       {/* Floating Chat Icon */}
       {submitted && (
-        <button
-          onClick={() => setInboxOpen(!inboxOpen)}
+        <button onClick={() => setInboxOpen(!inboxOpen)}
           className="fixed right-4 p-4 rounded-full shadow-lg"
-          style={{
-            bottom: `${iconBottom + 100}px`,
-            zIndex: 50,
-            backgroundColor: dark ? "#0f766e" : "#14b8a6",
-            color: "#fff",
-          }}
-        >
+          style={{ bottom: `${iconBottom + 100}px`, zIndex: 50, backgroundColor: dark ? "#0f766e" : "#14b8a6", color: "#fff" }}>
           <MessageCircle size={28} />
         </button>
       )}
 
-      {/* Chat Inbox */}
-      {inboxOpen && (
-        <div
-          className="fixed bottom-20 right-4 sm:right-6 w-[90vw] sm:w-[320px] max-h-[70vh] shadow-2xl rounded-2xl overflow-hidden flex flex-col z-50"
-          style={{
-            backgroundColor: dark ? "#111" : "#fff",
-            color: textColor,
-          }}
-        >
-          <div
-            className="flex justify-between items-center p-3"
-            style={{ backgroundColor: "#14b8a6", color: "#fff" }}
+      {/* Chat Inbox with Animation */}
+      <AnimatePresence>
+        {inboxOpen && userId && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            transition={{ duration: 0.3 }}
+            className="fixed bottom-20 right-4 sm:right-6 max-w-[320px] w-[calc(100vw-1rem)] max-h-[70vh] shadow-2xl rounded-2xl overflow-hidden flex flex-col z-50"
+            style={{ backgroundColor: dark ? "#111" : "#fff", color: textColor }}
           >
-            <h3 className="font-semibold">Chat</h3>
-            <button onClick={() => setInboxOpen(false)}>
-              <X size={20} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {messages.length > 0 ? (
-              messages.map((m) => (
+            <div className="flex justify-between items-center p-3" style={{ backgroundColor: "#14b8a6", color: "#fff" }}>
+              <h3 className="font-semibold">Chat {adminTyping && " (Admin is typing...)"}</h3>
+              <button onClick={() => setInboxOpen(false)}><X size={20} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {messages.length > 0 ? messages.map((m) => (
                 <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className="p-2 rounded-lg max-w-[70%] text-sm sm:text-base"
-                    style={{
-                      backgroundColor: m.sender === "admin" ? "#14b8a6" : dark ? "#333" : "#e5e7eb",
-                      color: m.sender === "admin" ? "#fff" : textColor,
-                    }}
-                  >
+                  <div className="p-2 rounded-lg max-w-[70%] text-sm sm:text-base" style={{
+                    backgroundColor: m.sender === "admin" ? "#14b8a6" : dark ? "#333" : "#e5e7eb",
+                    color: m.sender === "admin" ? "#fff" : textColor
+                  }}>
                     <strong>{m.name}</strong>
                     <p>{m.message}</p>
-                    <span className="text-[10px] block mt-1 opacity-70">
-                      {new Date(m.createdAt).toLocaleString()}
-                    </span>
+                    <span className="text-[10px] block mt-1 opacity-70">{new Date(m.createdAt).toLocaleString()}</span>
                   </div>
                 </div>
-              ))
-            ) : (
-              <p className="text-center">{dark ? "No messages yet." : "No messages yet."}</p>
-            )}
-            <div ref={scrollRef} />
-          </div>
-          <form onSubmit={handleChatSubmit} className="p-3 border-t flex gap-2">
-            <input
-              type="text"
-              value={chatMessage}
-              onChange={(e) => setChatMessage(e.target.value)}
-              placeholder="Type a message..."
-              className="flex-1 border p-2 rounded"
-              style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
-            />
-            <button type="submit" className="px-4 py-2 rounded bg-teal-600 text-white">
-              Send
-            </button>
-          </form>
-        </div>
-      )}
+              )) : <p className="text-center">No messages yet.</p>}
+              <div ref={scrollRef} />
+            </div>
+            <form onSubmit={handleChatSubmit} className="p-3 border-t flex gap-2">
+              <input type="text" value={chatMessage}
+                onChange={(e) => { setChatMessage(e.target.value); setTypingStatus(e.target.value.trim().length > 0); }}
+                placeholder="Type a message..."
+                className="flex-1 border p-2 rounded"
+                style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }} />
+              <button type="submit" className="px-4 py-2 rounded bg-teal-600 text-white">Send</button>
+            </form>
+            {chatStatus && <p className="text-center text-sm text-red-500 mt-1">{chatStatus}</p>}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
