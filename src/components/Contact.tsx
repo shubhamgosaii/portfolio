@@ -5,7 +5,30 @@ import { MessageCircle, X } from "lucide-react";
 import { onAuthStateChanged, signInAnonymously, User } from "firebase/auth";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Interfaces remain the same...
+// TypingIndicator Component
+const TypingIndicator = ({ name }: { name: string }) => (
+  <div className="text-sm italic text-gray-500 dark:text-gray-300 p-2 flex items-center gap-1">
+    <span>{name} is typing</span>
+    <span className="dots">
+      <span>.</span>
+      <span>.</span>
+      <span>.</span>
+    </span>
+    <style jsx>{`
+      .dots span {
+        animation: blink 1s infinite;
+      }
+      .dots span:nth-child(1) { animation-delay: 0s; }
+      .dots span:nth-child(2) { animation-delay: 0.2s; }
+      .dots span:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes blink {
+        0%, 20%, 50%, 80%, 100% { opacity: 0; }
+        10%, 30%, 60%, 90% { opacity: 1; }
+      }
+    `}</style>
+  </div>
+);
+
 export default function Contact({ dark }: { dark: boolean }) {
   const [data, setData] = useState<ContactData | null>(null);
   const [name, setName] = useState(localStorage.getItem("chatName") || "");
@@ -27,7 +50,7 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastMessageId, setLastMessageId] = useState<string | null>(null);
   const [iconShake, setIconShake] = useState(false);
-  const [authInitialized, setAuthInitialized] = useState(false); // NEW state: to handle auth initialization
+  const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -303,7 +326,10 @@ export default function Contact({ dark }: { dark: boolean }) {
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
               {messages.length > 0 ? (
                 messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    key={m.id}
+                    className={`flex ${m.sender === "admin" ? "justify-start" : "justify-end"}`}
+                  >
                     <div
                       className="p-2 rounded-lg max-w-[70%] text-sm sm:text-base"
                       style={{
@@ -323,12 +349,8 @@ export default function Contact({ dark }: { dark: boolean }) {
                 <p className="text-center">No messages yet.</p>
               )}
 
-              {/* Show typing indicator right above the latest message */}
-              {adminTyping && (
-                <div className="flex justify-center py-2 bg-gray-200">
-                  <span className="text-gray-500">Admin is typing...</span>
-                </div>
-              )}
+              {/* Typing Indicator for Admin */}
+              {adminTyping && <TypingIndicator name="Admin" />}
 
               <div ref={scrollRef} />
             </div>
