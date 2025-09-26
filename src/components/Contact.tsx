@@ -62,14 +62,6 @@ export default function Contact({ dark }: { dark: boolean }) {
     } else {
       console.log("Notification permission already granted.");
     }
-
-    // Test notification
-    if (Notification.permission === "granted") {
-      new Notification("Test notification", {
-        body: "This is a test notification",
-        icon: "/path-to-your-icon.png", // Replace with your icon path
-      });
-    }
   }, []);
 
   // Firebase Auth and User Initialization
@@ -388,3 +380,4 @@ export default function Contact({ dark }: { dark: boolean }) {
     </>
   );
 }
+
