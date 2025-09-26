@@ -1,6 +1,5 @@
-// src/components/Contact.tsx
 import React, { useEffect, useState, useRef } from "react";
-import { ref, onValue, push, onDisconnect, set } from "firebase/database";
+import { ref, onValue, push, get, set, onDisconnect } from "firebase/database";
 import { db, auth } from "../firebase";
 import { MessageCircle, X } from "lucide-react";
 import { onAuthStateChanged, signInAnonymously, User } from "firebase/auth";
@@ -45,22 +44,27 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [iconBottom, setIconBottom] = useState(24);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [adminTyping, setAdminTyping] = useState(false);
-  const typingTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [userTyping, setUserTyping] = useState(false);
 
+  const typingTimeout = useRef<NodeJS.Timeout | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastMessageId, setLastMessageId] = useState<string | null>(null);
   const [iconShake, setIconShake] = useState(false);
+  const [authInitialized, setAuthInitialized] = useState(false); // NEW state: to handle auth initialization
 
-  // Initialize anonymous user
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) setUser(u);
-      else setUser((await signInAnonymously(auth)).user);
+      if (u) {
+        setUser(u);
+      } else {
+        const result = await signInAnonymously(auth);
+        setUser(result.user);
+      }
+      setAuthInitialized(true);
     });
     return () => unsub();
   }, []);
 
-  // Fetch contact section data
   useEffect(() => {
     const contactRef = ref(db, "contact");
     return onValue(contactRef, (snapshot) => {
@@ -68,7 +72,6 @@ export default function Contact({ dark }: { dark: boolean }) {
     });
   }, []);
 
-  // Fetch messages for user
   useEffect(() => {
     if (!userId) return;
     const messagesRef = ref(db, `messages/${userId}`);
@@ -83,76 +86,87 @@ export default function Contact({ dark }: { dark: boolean }) {
 
         if (sorted.length > 0) {
           const latest = sorted[sorted.length - 1];
-          // New admin message check
           if (latest.sender === "admin" && latest.id !== lastMessageId) {
             if (!inboxOpen) {
               setUnreadCount((c) => c + 1);
-
-              // Vibrate
               if (navigator.vibrate) navigator.vibrate(200);
-
-              // Shake icon
               setIconShake(true);
               setTimeout(() => setIconShake(false), 600);
             }
             setLastMessageId(latest.id);
           }
         }
-      } else setMessages([]);
+      } else {
+        setMessages([]);
+      }
     });
   }, [userId, inboxOpen, lastMessageId]);
 
-  // Listen for admin typing
   useEffect(() => {
     if (!userId) return;
     const typingRef = ref(db, `typing/${userId}/admin`);
-    return onValue(typingRef, (snapshot) => setAdminTyping(snapshot.val() || false));
+    return onValue(typingRef, (snapshot) => {
+      const val = snapshot.val();
+      setAdminTyping(!!val);
+    });
   }, [userId]);
 
-  // Auto-scroll always to bottom
+  useEffect(() => {
+    if (!userId) return;
+    const typingRef = ref(db, `typing/${userId}/user`);
+    return onValue(typingRef, (snapshot) => {
+      const val = snapshot.val();
+      setUserTyping(!!val);
+    });
+  }, [userId]);
+
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, inboxOpen]);
 
-  // Reset unread count when chat opened
   useEffect(() => {
-    if (inboxOpen) setUnreadCount(0);
+    if (inboxOpen) {
+      setUnreadCount(0);
+    }
   }, [inboxOpen]);
-
-  // Floating chat icon position
-  useEffect(() => {
-    const handleScroll = () => {
-      const footer = document.querySelector("#footer");
-      if (!footer) return;
-      const footerRect = footer.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
-      setIconBottom(footerRect.top < windowHeight - 80 ? windowHeight - footerRect.top + 24 : 24);
-    };
-    window.addEventListener("scroll", handleScroll);
-    window.addEventListener("resize", handleScroll);
-    handleScroll();
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleScroll);
-    };
-  }, []);
 
   const isValidEmail = (mail: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
 
-  // Persist submission state
   useEffect(() => {
-    if (localStorage.getItem("chatEmail") && localStorage.getItem("chatUserId")) setSubmitted(true);
+    if (localStorage.getItem("chatEmail") && localStorage.getItem("chatUserId")) {
+      setSubmitted(true);
+    }
   }, []);
 
-  // Form submit
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !formMessage) return setFormStatus("Please fill all fields.");
-    if (!isValidEmail(email)) return setFormStatus("Please enter a valid email.");
-    if (!user) return setFormStatus("Initializing user... please wait.");
-
+    if (!name || !email || !formMessage) {
+      return setFormStatus("Please fill all fields.");
+    }
+    if (!isValidEmail(email)) {
+      return setFormStatus("Please enter a valid email.");
+    }
+    if (!user) {
+      return setFormStatus("Please wait, initializing...");
+    }
     try {
-      const finalUserId = user.uid;
+      const allMessagesRef = ref(db, "messages");
+      const snapshot = await get(allMessagesRef);
+      let existingUserId: string | null = null;
+
+      if (snapshot.exists()) {
+        snapshot.forEach((child) => {
+          const msgs = child.val();
+          Object.values(msgs as any).forEach((msg: any) => {
+            if (msg.email === email) {
+              existingUserId = msg.userId;
+            }
+          });
+        });
+      }
+
+      const finalUserId = existingUserId || user.uid;
+
       await push(ref(db, `messages/${finalUserId}`), {
         userId: finalUserId,
         name,
@@ -162,21 +176,23 @@ export default function Contact({ dark }: { dark: boolean }) {
         sender: "user",
       });
 
+      if (!existingUserId) {
+        setUserId(finalUserId);
+        localStorage.setItem("chatUserId", finalUserId);
+      }
+
       localStorage.setItem("contactSubmitted", "true");
       localStorage.setItem("chatName", name);
       localStorage.setItem("chatEmail", email);
-      localStorage.setItem("chatUserId", finalUserId);
-      setUserId(finalUserId);
       setSubmitted(true);
       setFormMessage("");
       setFormStatus("");
     } catch (err) {
-      console.error(err);
+      console.error("Error sending form:", err);
       setFormStatus("Failed to send message.");
     }
   };
 
-  // Chat submit
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatMessage.trim() || !userId) return;
@@ -193,16 +209,16 @@ export default function Contact({ dark }: { dark: boolean }) {
       setTypingStatus(false);
       setChatStatus("");
     } catch (err) {
-      console.error(err);
+      console.error("Error sending chat:", err);
       setChatStatus("Failed to send message.");
     }
   };
 
-  // Debounced typing status
   const setTypingStatus = (isTyping: boolean) => {
     if (!userId) return;
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
-
+    if (typingTimeout.current) {
+      clearTimeout(typingTimeout.current);
+    }
     set(ref(db, `typing/${userId}/user`), isTyping);
     onDisconnect(ref(db, `typing/${userId}/user`)).set(false);
 
@@ -210,6 +226,10 @@ export default function Contact({ dark }: { dark: boolean }) {
       set(ref(db, `typing/${userId}/user`), false);
     }, 2000);
   };
+
+  if (!authInitialized) {
+    return null; 
+  }
 
   const textColor = dark ? "#fff" : "#000";
 
@@ -227,7 +247,9 @@ export default function Contact({ dark }: { dark: boolean }) {
         <div className="container mx-auto px-4 sm:px-6 md:px-8 max-w-xl">
           {data && (
             <>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-8 text-center">{data.heading}</h2>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-8 text-center">
+                {data.heading}
+              </h2>
               {!submitted ? (
                 <form onSubmit={handleFormSubmit} className="grid gap-4">
                   <input
@@ -274,7 +296,7 @@ export default function Contact({ dark }: { dark: boolean }) {
           onClick={() => setInboxOpen(!inboxOpen)}
           animate={iconShake ? { x: [0, -6, 6, -4, 4, 0] } : {}}
           transition={{ duration: 0.6 }}
-          className="fixed right-4 p-4 rounded-full shadow-lg relative"
+          className="fixed right-4 p-4 rounded-full shadow-lg"
           style={{
             bottom: `${iconBottom + 100}px`,
             zIndex: 50,
@@ -291,7 +313,7 @@ export default function Contact({ dark }: { dark: boolean }) {
         </motion.button>
       )}
 
-      {/* Chat Inbox with Animation */}
+      {/* Chat Inbox */}
       <AnimatePresence>
         {inboxOpen && userId && (
           <motion.div
@@ -303,12 +325,24 @@ export default function Contact({ dark }: { dark: boolean }) {
             style={{ backgroundColor: dark ? "#111" : "#fff", color: textColor }}
           >
             <div className="flex justify-between items-center p-3" style={{ backgroundColor: "#14b8a6", color: "#fff" }}>
-              <h3 className="font-semibold">Chat {adminTyping && " (Admin is typing...)"}</h3>
+              <h3 className="font-semibold">
+                Chat with {localStorage.getItem("chatName") || "User"}
+              </h3>
               <button onClick={() => setInboxOpen(false)}>
                 <X size={20} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {adminTyping && (
+                <div className="flex justify-center">
+                  <span className="text-gray-500">Admin is typing...</span>
+                </div>
+              )}
+              {userTyping && (
+                <div className="flex justify-center">
+                  <span className="text-gray-500">You are typing...</span>
+                </div>
+              )}
               {messages.length > 0 ? (
                 messages.map((m) => (
                   <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
