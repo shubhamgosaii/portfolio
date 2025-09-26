@@ -8,21 +8,60 @@
     
     <title>Shubham Portfolio</title>
     
-    <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
 
-    <!-- Tailwind / Custom Styles -->
+
     <link rel="stylesheet" href="/src/styles.css" />
-    
-    <!-- Fonts -->
+ 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  </head>
+ </head>
+<script src="https://www.gstatic.com/firebasejs/9.8.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.8.0/firebase-messaging.js"></script>
+
   <body class="bg-white text-gray-900 dark:bg-[#0b1220] dark:text-white transition-colors duration-300">
     <div id="root"></div>
 
-    <!-- React entry -->
     <script type="module" src="/src/main.tsx"></script>
+
+    <script>
+      const firebaseConfig = {
+        apiKey: "",
+        authDomain: "",
+        databaseURL: "",
+        projectId: "",
+        storageBucket: "",
+        messagingSenderId: "",
+        appId: "",
+      };
+      const app = firebase.initializeApp(firebaseConfig);
+      const messaging = firebase.messaging();
+
+      messaging.requestPermission()
+        .then(() => {
+          console.log("Notification permission granted.");
+          return messaging.getToken();
+        })
+        .then((token) => {
+          console.log("FCM Token:", token);
+        })
+        .catch((err) => {
+          console.error("Permission denied or error occurred: ", err);
+        });
+
+      messaging.onMessage((payload) => {
+        console.log("Message received. ", payload);
+        const notificationTitle = payload.notification.title;
+        const notificationOptions = {
+          body: payload.notification.body,
+          icon: payload.notification.icon,
+        };
+
+        if (Notification.permission === "granted") {
+          new Notification(notificationTitle, notificationOptions);
+        }
+      });
+    </script>
   </body>
 </html>
