@@ -52,6 +52,27 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [iconShake, setIconShake] = useState(false);
   const [authInitialized, setAuthInitialized] = useState(false);
 
+  // Request FCM permissions and setup notification listener
+  useEffect(() => {
+    if (Notification.permission !== "granted") {
+      console.log("Requesting Notification permission...");
+      Notification.requestPermission().then((permission) => {
+        console.log("Notification Permission:", permission);
+      });
+    } else {
+      console.log("Notification permission already granted.");
+    }
+
+    // Test notification
+    if (Notification.permission === "granted") {
+      new Notification("Test notification", {
+        body: "This is a test notification",
+        icon: "/path-to-your-icon.png", // Replace with your icon path
+      });
+    }
+  }, []);
+
+  // Firebase Auth and User Initialization
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
@@ -65,13 +86,7 @@ export default function Contact({ dark }: { dark: boolean }) {
     return () => unsub();
   }, []);
 
-  useEffect(() => {
-    const contactRef = ref(db, "contact");
-    return onValue(contactRef, (snapshot) => {
-      if (snapshot.exists()) setData(snapshot.val());
-    });
-  }, []);
-
+  // Fetching User Messages
   useEffect(() => {
     if (!userId) return;
     const messagesRef = ref(db, `messages/${userId}`);
@@ -94,6 +109,14 @@ export default function Contact({ dark }: { dark: boolean }) {
               setTimeout(() => setIconShake(false), 600);
             }
             setLastMessageId(latest.id);
+
+            // Show notification if it's an admin message and not in inbox
+            if (!inboxOpen && Notification.permission === "granted") {
+              new Notification("New message from Admin", {
+                body: latest.message,
+                icon: "/path-to-your-icon.png", // Ensure the icon path is correct
+              });
+            }
           }
         }
       } else {
@@ -102,43 +125,33 @@ export default function Contact({ dark }: { dark: boolean }) {
     });
   }, [userId, inboxOpen, lastMessageId]);
 
+  // Show notification when a user sends a message
   useEffect(() => {
-    if (!userId) return;
-    const typingRef = ref(db, `typing/${userId}/admin`);
-    return onValue(typingRef, (snapshot) => {
-      const val = snapshot.val();
-      setAdminTyping(!!val);
-    });
-  }, [userId]);
+    if (!user || !messages.length) return;
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, inboxOpen]);
+    const latestMessage = messages[messages.length - 1];
+    console.log("Latest message:", latestMessage);
 
-  useEffect(() => {
-    if (inboxOpen) {
-      setUnreadCount(0);
+    // Ensure that notifications are shown only if the sender is the user and not the selected user
+    if (latestMessage.sender === "user" && latestMessage.userId !== userId) {
+      if (Notification.permission === "granted") {
+        console.log("Displaying notification for new message...");
+
+        new Notification("New message from " + latestMessage.name, {
+          body: latestMessage.message,
+          icon: "/path-to-your-icon.png", // Ensure the icon path is correct
+        });
+      } else {
+        console.log("Notification permission not granted.");
+      }
     }
-  }, [inboxOpen]);
+  }, [messages, userId]);
 
-  const isValidEmail = (mail: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
-
-  useEffect(() => {
-    if (localStorage.getItem("chatEmail") && localStorage.getItem("chatUserId")) {
-      setSubmitted(true);
-    }
-  }, []);
-
+  // Handle Form Submission
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !formMessage) {
       return setFormStatus("Please fill all fields.");
-    }
-    if (!isValidEmail(email)) {
-      return setFormStatus("Please enter a valid email.");
-    }
-    if (!user) {
-      return setFormStatus("Please wait, initializing...");
     }
     try {
       const allMessagesRef = ref(db, "messages");
@@ -184,6 +197,7 @@ export default function Contact({ dark }: { dark: boolean }) {
     }
   };
 
+  // Handle Chat Submission
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatMessage.trim() || !userId) return;
@@ -197,7 +211,6 @@ export default function Contact({ dark }: { dark: boolean }) {
         sender: "user",
       });
       setChatMessage("");
-      setTypingStatus(false);
       setChatStatus("");
     } catch (err) {
       console.error("Error sending chat:", err);
@@ -205,24 +218,22 @@ export default function Contact({ dark }: { dark: boolean }) {
     }
   };
 
-  const setTypingStatus = (isTyping: boolean) => {
-    if (!userId) return;
-    if (typingTimeout.current) {
-      clearTimeout(typingTimeout.current);
+  // Scroll to bottom when new message is added
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Reset unread count when inbox is opened
+  useEffect(() => {
+    if (inboxOpen) {
+      setUnreadCount(0);
     }
-    set(ref(db, `typing/${userId}/user`), isTyping);
-    onDisconnect(ref(db, `typing/${userId}/user`)).set(false);
+  }, [inboxOpen]);
 
-    typingTimeout.current = setTimeout(() => {
-      set(ref(db, `typing/${userId}/user`), false);
-    }, 2000);
-  };
-
+  // Show UI only after auth is initialized
   if (!authInitialized) {
-    return null; 
+    return null;
   }
-
-  const textColor = dark ? "#fff" : "#000";
 
   return (
     <>
@@ -231,7 +242,7 @@ export default function Contact({ dark }: { dark: boolean }) {
         className="section transition-colors duration-300 py-16"
         style={{
           fontFamily: data?.font || "inherit",
-          color: textColor,
+          color: dark ? "#fff" : "#000",
           backgroundColor: dark ? data?.darkBackgroundColor || "#111" : data?.backgroundColor || "#fff",
         }}
       >
@@ -248,26 +259,26 @@ export default function Contact({ dark }: { dark: boolean }) {
                     onChange={(e) => setName(e.target.value)}
                     placeholder={data.placeholders.name}
                     className="p-3 rounded focus:ring-2 outline-none transition w-full"
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
+                    style={{ color: dark ? "#fff" : "#000", backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={data.placeholders.email}
                     className="p-3 rounded focus:ring-2 outline-none transition w-full"
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
+                    style={{ color: dark ? "#fff" : "#000", backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <textarea
                     value={formMessage}
                     onChange={(e) => setFormMessage(e.target.value)}
                     placeholder={data.placeholders.message}
                     className="p-3 rounded h-32 sm:h-40 focus:ring-2 outline-none transition w-full resize-none"
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
+                    style={{ color: dark ? "#fff" : "#000", backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <button
                     type="submit"
                     className="btn w-full sm:w-auto px-4 py-2 rounded transition-transform hover:scale-105 active:scale-95 mx-auto touch-manipulation"
-                    style={{ backgroundColor: data.buttonBgColor || "#14b8a6", color: data.buttonTextColor || "#fff" }}
+                    style={{ backgroundColor: "#14b8a6", color: "#fff" }}
                   >
                     {data.buttonText}
                   </button>
@@ -313,7 +324,7 @@ export default function Contact({ dark }: { dark: boolean }) {
             exit={{ opacity: 0, y: 50 }}
             transition={{ duration: 0.3 }}
             className="fixed bottom-20 right-4 sm:right-6 max-w-[320px] w-[calc(100vw-1rem)] max-h-[70vh] shadow-2xl rounded-2xl overflow-hidden flex flex-col z-50"
-            style={{ backgroundColor: dark ? "#111" : "#fff", color: textColor }}
+            style={{ backgroundColor: dark ? "#111" : "#fff", color: dark ? "#fff" : "#000" }}
           >
             <div className="flex justify-between items-center p-3" style={{ backgroundColor: "#14b8a6", color: "#fff" }}>
               <h3 className="font-semibold">
@@ -334,7 +345,7 @@ export default function Contact({ dark }: { dark: boolean }) {
                       className="p-2 rounded-lg max-w-[70%] text-sm sm:text-base"
                       style={{
                         backgroundColor: m.sender === "admin" ? "#14b8a6" : dark ? "#333" : "#e5e7eb",
-                        color: m.sender === "admin" ? "#fff" : textColor,
+                        color: m.sender === "admin" ? "#fff" : dark ? "#fff" : "#000",
                       }}
                     >
                       <strong>{m.name}</strong>
@@ -351,7 +362,6 @@ export default function Contact({ dark }: { dark: boolean }) {
 
               {/* Typing Indicator for Admin */}
               {adminTyping && <TypingIndicator name="Admin" />}
-
               <div ref={scrollRef} />
             </div>
 
@@ -365,7 +375,7 @@ export default function Contact({ dark }: { dark: boolean }) {
                 }}
                 placeholder="Type a message..."
                 className="flex-1 border p-2 rounded"
-                style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
+                style={{ color: dark ? "#fff" : "#000", backgroundColor: dark ? "#222" : "#fff" }}
               />
               <button type="submit" className="px-4 py-2 rounded bg-teal-600 text-white">
                 Send
