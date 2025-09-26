@@ -1,4 +1,3 @@
-// src/App.tsx
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { useState, useEffect } from "react";
 
@@ -22,12 +21,14 @@ import AdminInbox from "./components/AdminInbox";
 import { useAuth } from "./context/AuthContext";
 import { ADMIN_EMAIL } from "./config";
 
-
+// Firebase functions
+import { requestNotificationPermission, setupForegroundMessageListener } from "./firebase";
 
 function App() {
   const [dark, setDark] = useState(false);
   const { user, loading } = useAuth();
 
+  // Manage dark mode in localStorage
   useEffect(() => {
     if (dark) document.documentElement.classList.add("dark");
     else document.documentElement.classList.remove("dark");
@@ -39,11 +40,13 @@ function App() {
     if (saved) setDark(JSON.parse(saved));
   }, []);
 
+  // Scroll to home section on load
   useEffect(() => {
     const homeSection = document.getElementById("home");
     if (homeSection) homeSection.scrollIntoView({ behavior: "auto" });
   }, []);
 
+  // Smooth scrolling for anchor links
   useEffect(() => {
     const handleAnchorClick = (e: Event) => {
       const target = e.target as HTMLAnchorElement;
@@ -56,6 +59,19 @@ function App() {
     };
     document.addEventListener("click", handleAnchorClick);
     return () => document.removeEventListener("click", handleAnchorClick);
+  }, []);
+
+  // Request permission for push notifications when app is initialized
+  useEffect(() => {
+    requestNotificationPermission(); // Ensure this is called when the app loads
+  }, []);
+
+  // Setup foreground message listener for push notifications
+  useEffect(() => {
+    setupForegroundMessageListener((message) => {
+      console.log("Received foreground message:", message);
+      // Here, you can handle the message and show a notification, etc.
+    });
   }, []);
 
   // Loading GIF while Firebase restores session
@@ -74,7 +90,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Portfolio */}
+        {/* Portfolio Routes */}
         <Route
           path="/"
           element={
@@ -93,7 +109,7 @@ function App() {
           }
         />
 
-        {/* Admin dashboard */}
+        {/* Admin Routes */}
         <Route
           path="/admin"
           element={
