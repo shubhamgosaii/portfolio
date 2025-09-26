@@ -289,10 +289,10 @@ export default function Contact({ dark }: { dark: boolean }) {
           transition={{ duration: 0.6 }}
           className="fixed right-4 p-4 rounded-full shadow-lg"
           style={{
-            bottom: `${iconBottom + 100}px`,
+            bottom: `${iconBottom + 100}px`, 
             zIndex: 50,
             backgroundColor: dark ? "#0f766e" : "#14b8a6",
-            color: "#fff",
+            color: "#fff"
           }}
         >
           <MessageCircle size={28} />
