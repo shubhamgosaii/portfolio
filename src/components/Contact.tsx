@@ -5,29 +5,7 @@ import { MessageCircle, X } from "lucide-react";
 import { onAuthStateChanged, signInAnonymously, User } from "firebase/auth";
 import { motion, AnimatePresence } from "framer-motion";
 
-interface ContactData {
-  heading: string;
-  placeholders: { name: string; email: string; message: string };
-  buttonText: string;
-  buttonBgColor?: string;
-  buttonTextColor?: string;
-  font?: string;
-  textColor?: string;
-  backgroundColor?: string;
-  darkTextColor?: string;
-  darkBackgroundColor?: string;
-}
-
-interface Message {
-  id: string;
-  name: string;
-  email: string;
-  userId: string;
-  message: string;
-  createdAt: number;
-  sender: "user" | "admin";
-}
-
+// Interfaces remain the same...
 export default function Contact({ dark }: { dark: boolean }) {
   const [data, setData] = useState<ContactData | null>(null);
   const [name, setName] = useState(localStorage.getItem("chatName") || "");
@@ -44,7 +22,6 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [iconBottom, setIconBottom] = useState(24);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [adminTyping, setAdminTyping] = useState(false);
-  const [userTyping, setUserTyping] = useState(false);
 
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -108,15 +85,6 @@ export default function Contact({ dark }: { dark: boolean }) {
     return onValue(typingRef, (snapshot) => {
       const val = snapshot.val();
       setAdminTyping(!!val);
-    });
-  }, [userId]);
-
-  useEffect(() => {
-    if (!userId) return;
-    const typingRef = ref(db, `typing/${userId}/user`);
-    return onValue(typingRef, (snapshot) => {
-      const val = snapshot.val();
-      setUserTyping(!!val);
     });
   }, [userId]);
 
@@ -333,16 +301,6 @@ export default function Contact({ dark }: { dark: boolean }) {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              {adminTyping && (
-                <div className="flex justify-center">
-                  <span className="text-gray-500">Admin is typing...</span>
-                </div>
-              )}
-              {userTyping && (
-                <div className="flex justify-center">
-                  <span className="text-gray-500">You are typing...</span>
-                </div>
-              )}
               {messages.length > 0 ? (
                 messages.map((m) => (
                   <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
@@ -364,8 +322,17 @@ export default function Contact({ dark }: { dark: boolean }) {
               ) : (
                 <p className="text-center">No messages yet.</p>
               )}
+
+              {/* Show typing indicator right above the latest message */}
+              {adminTyping && (
+                <div className="flex justify-center py-2 bg-gray-200">
+                  <span className="text-gray-500">Admin is typing...</span>
+                </div>
+              )}
+
               <div ref={scrollRef} />
             </div>
+
             <form onSubmit={handleChatSubmit} className="p-3 border-t flex gap-2">
               <input
                 type="text"
