@@ -1,4 +1,3 @@
-// src/components/AdminInbox.tsx
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { ref, onValue, push, remove, update, onDisconnect, set } from "firebase/database";
 import { db, auth } from "../firebase";
@@ -59,6 +58,13 @@ export default function AdminInbox() {
   const [typingUsers, setTypingUsers] = useState<Record<string, { user?: boolean; admin?: boolean }>>({});
   const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Request permission for notifications
+  useEffect(() => {
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Auth check
   useEffect(() => {
@@ -185,6 +191,20 @@ export default function AdminInbox() {
     const element = document.getElementById(firstUnread.id);
     element?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
+
+  // Show notification when a user sends a message
+  useEffect(() => {
+    if (!admin) return;
+    const latestMessage = messages[messages.length - 1];
+    if (latestMessage?.sender === "user" && latestMessage.userId !== selectedUser) {
+      if (Notification.permission === "granted") {
+        new Notification("New message from " + latestMessage.name, {
+          body: latestMessage.message,
+          icon: "/path-to-your-icon.png", // Replace with the actual icon path
+        });
+      }
+    }
+  }, [messages]);
 
   if (initializing) return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div>;
   if (unauthorized) return (
