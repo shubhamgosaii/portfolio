@@ -216,7 +216,7 @@ export default function AdminInbox() {
   if (!admin) return <div className="flex items-center justify-center h-screen"><p>Please log in as admin</p></div>;
 
   return (
-    <div className="flex h-screen w-full">
+    <div className="flex h-screen w-full overflow-hidden">
       {/* Sidebar */}
       <div className={`fixed md:relative top-0 left-0 h-full w-64 bg-gray-100 dark:bg-gray-900 border-r shadow-lg transition-transform duration-300 z-40 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="flex justify-between items-center p-4 border-b">
@@ -259,7 +259,7 @@ export default function AdminInbox() {
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 relative">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 relative" style={{ paddingTop: "60px" }}>
           {selectedUser && (
             <>
               {grouped[selectedUser]?.map(m => (
