@@ -37,13 +37,13 @@ export default function Contact({ dark }: { dark: boolean }) {
   const [name, setName] = useState(localStorage.getItem("chatName") || "");
   const [email, setEmail] = useState(localStorage.getItem("chatEmail") || "");
   const [formMessage, setFormMessage] = useState("");
-  const [status, setStatus] = useState("");    
+  const [status, setStatus] = useState("");
   const [submitted, setSubmitted] = useState(localStorage.getItem("contactSubmitted") === "true");
   const [inboxOpen, setInboxOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [userId, setUserId] = useState<string | null>(localStorage.getItem("chatUserId"));    
+  const [userId, setUserId] = useState<string | null>(localStorage.getItem("chatUserId"));
   const [user, setUser] = useState<User | null>(null);
-  const [typing, setTyping] = useState(false); 
+  const [typing, setTyping] = useState(false);
   const [adminTyping, setAdminTyping] = useState(false);
   const [iconShake, setIconShake] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0); // Unread message count
@@ -61,8 +61,8 @@ export default function Contact({ dark }: { dark: boolean }) {
 
   // Fetch contact data
   useEffect(() => {
-    const contactRef = ref(db, "contact");     
-    return onValue(contactRef, (snapshot) => { 
+    const contactRef = ref(db, "contact");
+    return onValue(contactRef, (snapshot) => {
       if (snapshot.exists()) setData(snapshot.val());
     });
   }, []);
@@ -79,16 +79,21 @@ export default function Contact({ dark }: { dark: boolean }) {
         }));
         setMessages(msgs.sort((a, b) => a.createdAt - b.createdAt));
 
-        // Update unread count
+        // Update unread count only for admin messages
         if (!inboxOpen) {
-          const unreadMessages = msgs.filter((msg) => msg.createdAt > (localStorage.getItem("lastRead") || 0));
+          const unreadMessages = msgs.filter(
+            (msg) => msg.sender === "admin" && msg.createdAt > (localStorage.getItem("lastRead") || 0)
+          );
           setUnreadCount(unreadMessages.length);
         } else {
-          setUnreadCount(0); // Reset when inbox is open
+          setUnreadCount(0); // Reset unread count when inbox is open
         }
-      } else setMessages([]);
+      } else {
+        setMessages([]);
+      }
     });
   }, [userId, inboxOpen]);
+
 
   // Scroll to bottom
   useEffect(() => {
@@ -121,7 +126,7 @@ export default function Contact({ dark }: { dark: boolean }) {
     if (!userId) return;
     const adminTypingRef = ref(db, `typing/${userId}/admin`);
     return onValue(adminTypingRef, (snapshot) => {
-      setAdminTyping(snapshot.val() || false); 
+      setAdminTyping(snapshot.val() || false);
     });
   }, [userId]);
 
@@ -168,7 +173,7 @@ export default function Contact({ dark }: { dark: boolean }) {
       }
 
       localStorage.setItem("contactSubmitted", "true");
-      localStorage.setItem("chatName", name);  
+      localStorage.setItem("chatName", name);
       localStorage.setItem("chatEmail", email);
       localStorage.setItem("chatUserId", finalUserId);
       setUserId(finalUserId);
@@ -177,7 +182,7 @@ export default function Contact({ dark }: { dark: boolean }) {
       setStatus("");
     } catch (err) {
       console.error(err);
-      setStatus("Failed to send message.");    
+      setStatus("Failed to send message.");
     }
   };
 
@@ -197,7 +202,7 @@ export default function Contact({ dark }: { dark: boolean }) {
       setFormMessage("");
     } catch (err) {
       console.error(err);
-      setStatus("Failed to send message.");    
+      setStatus("Failed to send message.");
     }
   };
 
@@ -231,7 +236,7 @@ export default function Contact({ dark }: { dark: boolean }) {
     </div>
   );
 
-  const textColor = dark ? "#fff" : "#000";    
+  const textColor = dark ? "#fff" : "#000";
 
   // Request FCM permissions and setup notification listener
   useEffect(() => {
@@ -246,7 +251,7 @@ export default function Contact({ dark }: { dark: boolean }) {
   }, []);
 
   useEffect(() => {
-    if (!inboxOpen && messages.length > 0) {   
+    if (!inboxOpen && messages.length > 0) {
       const latest = messages[messages.length - 1];
       if (latest.sender === "admin" && Notification.permission === "granted") {
         new Notification("New message from Admin", {
@@ -263,7 +268,7 @@ export default function Contact({ dark }: { dark: boolean }) {
         id="contact"
         className="section transition-colors duration-300 py-16"
         style={{
-          fontFamily: data?.font || "inherit", 
+          fontFamily: data?.font || "inherit",
           color: textColor,
           backgroundColor: dark ? data?.darkBackgroundColor || "#111" : data?.backgroundColor || "#fff",
         }}
@@ -280,22 +285,22 @@ export default function Contact({ dark }: { dark: boolean }) {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={data.placeholders.name}
-                    className="p-3 rounded focus:ring-2 outline-none transition w-full"       
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}     
+                    className="p-3 rounded focus:ring-2 outline-none transition w-full"
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={data.placeholders.email}
-                    className="p-3 rounded focus:ring-2 outline-none transition w-full"       
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}     
+                    className="p-3 rounded focus:ring-2 outline-none transition w-full"
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <textarea
-                    value={formMessage}        
+                    value={formMessage}
                     onChange={(e) => setFormMessage(e.target.value)}
                     placeholder={data.placeholders.message}
                     className="p-3 rounded h-32 sm:h-40 focus:ring-2 outline-none transition w-full resize-none"
-                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}     
+                    style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
                   />
                   <button
                     type="submit"
@@ -319,32 +324,32 @@ export default function Contact({ dark }: { dark: boolean }) {
       {/* Floating Chat Icon */}
       {submitted && (
         <motion.button
-  onClick={() => {
-    setInboxOpen(!inboxOpen);
-    if (!inboxOpen) {
-      // Reset unread count when the inbox is opened
-      setUnreadCount(0);
-      // You can also set a timestamp for last read
-      localStorage.setItem("lastRead", Date.now().toString());
-    }
-  }}
-  animate={iconShake ? { x: [0, -6, 6, -4, 4, 0] } : {}}
-  transition={{ duration: 0.6 }}
-  className="fixed right-4 p-4 rounded-full shadow-lg"
-  style={{
-    bottom: `${124}px`,
-    zIndex: 50,
-    backgroundColor: dark ? "#0f766e" : "#14b8a6",
-    color: "#fff",
-  }}
->
-  <MessageCircle size={28} />
-  {unreadCount > 0 && (
-    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
-      {unreadCount}
-    </span>
-  )}
-</motion.button>
+          onClick={() => {
+            setInboxOpen(!inboxOpen);
+            if (!inboxOpen) {
+              // Reset unread count when the inbox is opened
+              setUnreadCount(0);
+              // You can also set a timestamp for last read
+              localStorage.setItem("lastRead", Date.now().toString());
+            }
+          }}
+          animate={iconShake ? { x: [0, -6, 6, -4, 4, 0] } : {}}
+          transition={{ duration: 0.6 }}
+          className="fixed right-4 p-4 rounded-full shadow-lg"
+          style={{
+            bottom: `${124}px`,
+            zIndex: 50,
+            backgroundColor: dark ? "#0f766e" : "#14b8a6",
+            color: "#fff",
+          }}
+        >
+          <MessageCircle size={28} />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
+              {unreadCount}
+            </span>
+          )}
+        </motion.button>
 
       )}
 
@@ -370,13 +375,13 @@ export default function Contact({ dark }: { dark: boolean }) {
                     color: m.sender === "admin" ? textColor : "#fff",
                   }}
                 >
-                  <strong>{m.name}</strong>    
+                  <strong>{m.name}</strong>
                   <p>{m.message}</p>
                   <span className="text-[10px] block mt-1 opacity-70">{new Date(m.createdAt).toLocaleString()}</span>
                 </div>
               </div>
             ))}
-            {/* Admin Typing Indicator */}     
+            {/* Admin Typing Indicator */}
             {adminTyping && <TypingIndicator name="Admin" />}
             <div ref={scrollRef} />
           </div>
@@ -385,11 +390,11 @@ export default function Contact({ dark }: { dark: boolean }) {
               type="text"
               value={formMessage}
               onChange={(e) => setFormMessage(e.target.value)}
-              placeholder="Type a message..."  
+              placeholder="Type a message..."
               className="flex-1 border p-2 rounded"
               style={{ color: textColor, backgroundColor: dark ? "#222" : "#fff" }}
             />
-            <button type="submit" className="px-4 py-2 rounded bg-teal-600 text-white">       
+            <button type="submit" className="px-4 py-2 rounded bg-teal-600 text-white">
               Send
             </button>
           </form>
@@ -398,3 +403,4 @@ export default function Contact({ dark }: { dark: boolean }) {
     </>
   );
 }
+
