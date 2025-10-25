@@ -5,7 +5,7 @@ import { Menu, X } from "lucide-react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { ADMIN_EMAIL } from "../config";
 
-// Typing indicator component
+// Global Typing Indicator Component (animated dots)
 const TypingIndicator = ({ name }: { name: string }) => (
   <div className="text-sm italic text-gray-500 dark:text-gray-300 p-2 flex items-center gap-1">
     <span>{name} is typing</span>
@@ -174,7 +174,7 @@ export default function AdminInbox() {
   // Filter users
   const filteredUsers = Object.keys(users).filter(userId => users[userId].name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Users with unread messages (pulse)
+  // Users with unread messages (pulse effect)
   const usersWithUnread = useMemo(() => {
     const result: Record<string, boolean> = {};
     Object.keys(grouped).forEach(userId => {
@@ -183,7 +183,7 @@ export default function AdminInbox() {
     return result;
   }, [grouped]);
 
-  // Jump to first unread
+  // Jump to the first unread message
   const jumpToFirstUnread = () => {
     if (!selectedUser) return;
     const firstUnread = grouped[selectedUser]?.find(m => !m.read && m.sender === "user");
@@ -206,13 +206,19 @@ export default function AdminInbox() {
     }
   }, [messages]);
 
-  if (initializing) return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div>;
+  if (initializing) return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="loader"></div> {/* Global loading spinner */}
+    </div>
+  );
+
   if (unauthorized) return (
     <div className="flex flex-col items-center justify-center h-screen p-4">
       <h2 className="text-xl font-bold text-red-500 mb-4">Access Denied 🚫</h2>
       <button onClick={logout} className="mt-4 bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Logout</button>
     </div>
   );
+
   if (!admin) return <div className="flex items-center justify-center h-screen"><p>Please log in as admin</p></div>;
 
   return (
